@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -17,7 +19,9 @@ const (
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
 var _ = net.Listen
 var _ = os.Exit
-var storage = make(map[string]string)
+
+// var storage = make(map[string]string)
+var storage = &Storage{Data: make(map[string]map[string]time.Time)}
 
 func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -165,24 +169,66 @@ func handleInput(input string) string {
 
 		if len(elements) > 1 {
 
-			val, ok := storage[elements[1]]
+			data, ok := storage.Data[elements[1]]
 			if !ok {
 				return fmt.Sprintf("%v-1%s", string(bulkStringMark), terminator)
 			}
-			return encodeBulkString(fmt.Sprintf("%v", val))
+
+			for val, stamp := range data {
+
+				if stamp.IsZero() {
+					return encodeBulkString(fmt.Sprintf("%v", val))
+				}
+
+				if stamp.Before(time.Now()) {
+
+					storage.Data[elements[1]] = nil
+					return fmt.Sprintf("%v-1%s", string(bulkStringMark), terminator)
+
+				}
+
+				return encodeBulkString(fmt.Sprintf("%v", val))
+
+			}
 
 		}
 		return defaultReply
 
 	case "set":
 
-		if len(elements) > 2 {
+		if len(elements) >= 3 {
 
 			key, value := elements[1], elements[2]
-			storage[key] = value
+
+			data := make(map[string]time.Time)
+			data[value] = time.Time{}
+			storage.Data[key] = data
+
+			if len(elements) == 5 {
+
+				opt := strings.ToLower(elements[3])
+				if opt != "px" && opt != "ex" {
+					return defaultReply
+				}
+
+				val, err := strconv.Atoi(elements[4])
+				if err != nil {
+					return defaultReply
+				}
+
+				var lifespan time.Duration
+				if opt == "px" {
+					lifespan = time.Duration(val) * time.Millisecond
+				} else {
+					lifespan = time.Duration(val) * time.Second
+				}
+				data[value] = time.Now().Add(lifespan)
+				storage.Data[key] = data
+
+			}
+
 			return fmt.Sprintf("%sOK%s", string(stringMark), terminator)
 		}
-
 		return defaultReply
 
 	default:
