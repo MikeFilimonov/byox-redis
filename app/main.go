@@ -8,14 +8,16 @@ import (
 )
 
 const (
-	terminator = "\r\n"
-	arrayMark  = '*'
-	stringMark = '$'
+	terminator     = "\r\n"
+	arrayMark      = '*'
+	bulkStringMark = '$'
+	stringMark     = '+'
 )
 
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
 var _ = net.Listen
 var _ = os.Exit
+var storage = make(map[string]string)
 
 func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -49,7 +51,7 @@ func encodeBulkString(input string) string {
 
 func parseBulkString(input string) (string, string) {
 
-	if len(input) == 0 || input[0] != stringMark {
+	if len(input) == 0 || input[0] != bulkStringMark {
 		return "", input
 	}
 
@@ -102,7 +104,7 @@ func parseArray(input string) ([]string, string) {
 	elements := make([]string, 0, elementsCount)
 
 	for i := 0; i < elementsCount; i++ {
-		if len(remainder) == 0 || remainder[0] != stringMark {
+		if len(remainder) == 0 || remainder[0] != bulkStringMark {
 			break
 		}
 
@@ -124,7 +126,7 @@ func replyToClient(clientConnection net.Conn) {
 		n, err := clientConnection.Read(buffer)
 		if err != nil {
 			fmt.Println("Failed to read data from client request: ", err.Error())
-			os.Exit(1)
+			return
 		}
 
 		input := string(buffer[:n])
@@ -136,30 +138,55 @@ func replyToClient(clientConnection net.Conn) {
 
 func handleInput(input string) string {
 
+	defaultReply := fmt.Sprintf("0%s%s", terminator, terminator)
 	if len(input) == 0 {
-		return ""
+		return defaultReply
 	}
 
-	if input[0] == arrayMark {
-		elements, _ := parseArray(input)
-		if len(elements) == 0 {
-			return ""
-		}
+	if input[0] != arrayMark {
+		return defaultReply
+	}
 
-		command := strings.ToLower(elements[0])
-		switch command {
-		case "ping":
-			return "+PONG\r\n"
-		case "echo":
-			if len(elements) > 1 {
-				return encodeBulkString(elements[1])
+	elements, _ := parseArray(input)
+	if len(elements) == 0 {
+		return defaultReply
+	}
+
+	command := strings.ToLower(elements[0])
+	switch command {
+	case "ping":
+		return fmt.Sprintf("%vPONG%s", string(stringMark), terminator)
+	case "echo":
+		if len(elements) > 1 {
+			return encodeBulkString(elements[1])
+		}
+		return defaultReply
+	case "get":
+
+		if len(elements) > 1 {
+
+			val, ok := storage[elements[1]]
+			if !ok {
+				return fmt.Sprintf("%v-1%s", string(bulkStringMark), terminator)
 			}
-			return "$0\r\n\r\n"
-		default:
-			return ""
+			return encodeBulkString(fmt.Sprintf("%v", val))
+
+		}
+		return defaultReply
+
+	case "set":
+
+		if len(elements) > 2 {
+
+			key, value := elements[1], elements[2]
+			storage[key] = value
+			return fmt.Sprintf("%sOK%s", string(stringMark), terminator)
 		}
 
+		return defaultReply
+
+	default:
+		return defaultReply
 	}
 
-	return ""
 }
