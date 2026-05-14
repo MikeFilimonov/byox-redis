@@ -20,8 +20,7 @@ const (
 var _ = net.Listen
 var _ = os.Exit
 
-// var storage = make(map[string]string)
-var storage = &Storage{Data: make(map[string]map[string]time.Time)}
+var storage = &Storage{data: make(map[string]Entry)}
 
 func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -166,73 +165,78 @@ func handleInput(input string) string {
 		}
 		return defaultReply
 	case "get":
-
-		if len(elements) > 1 {
-
-			data, ok := storage.Data[elements[1]]
-			if !ok {
-				return fmt.Sprintf("%v-1%s", string(bulkStringMark), terminator)
-			}
-
-			for val, stamp := range data {
-
-				if stamp.IsZero() {
-					return encodeBulkString(fmt.Sprintf("%v", val))
-				}
-
-				if stamp.Before(time.Now()) {
-
-					storage.Data[elements[1]] = nil
-					return fmt.Sprintf("%v-1%s", string(bulkStringMark), terminator)
-
-				}
-
-				return encodeBulkString(fmt.Sprintf("%v", val))
-
-			}
-
-		}
-		return defaultReply
-
+		return getValue(elements, defaultReply)
 	case "set":
-
-		if len(elements) >= 3 {
-
-			key, value := elements[1], elements[2]
-
-			data := make(map[string]time.Time)
-			data[value] = time.Time{}
-			storage.Data[key] = data
-
-			if len(elements) == 5 {
-
-				opt := strings.ToLower(elements[3])
-				if opt != "px" && opt != "ex" {
-					return defaultReply
-				}
-
-				val, err := strconv.Atoi(elements[4])
-				if err != nil {
-					return defaultReply
-				}
-
-				var lifespan time.Duration
-				if opt == "px" {
-					lifespan = time.Duration(val) * time.Millisecond
-				} else {
-					lifespan = time.Duration(val) * time.Second
-				}
-				data[value] = time.Now().Add(lifespan)
-				storage.Data[key] = data
-
-			}
-
-			return fmt.Sprintf("%sOK%s", string(stringMark), terminator)
-		}
-		return defaultReply
-
+		return setValue(elements, defaultReply)
 	default:
 		return defaultReply
 	}
+
+}
+
+func getValue(elements []string, defaultReply string) string {
+
+	if len(elements) > 1 {
+
+		ok, data := storage.Get(elements[1])
+		if !ok {
+			return fmt.Sprintf("%v-1%s", string(bulkStringMark), terminator)
+		}
+
+		if data.TimeStamp.IsZero() {
+			return encodeBulkString(fmt.Sprintf("%v", data.Value))
+		}
+
+		if data.TimeStamp.Before(time.Now()) {
+			storage.Set(elements[1], Entry{})
+			return fmt.Sprintf("%v-1%s", string(bulkStringMark), terminator)
+		}
+
+		return encodeBulkString(fmt.Sprintf("%v", data.Value))
+
+	}
+	return defaultReply
+
+}
+
+func setValue(elements []string, defaultReply string) string {
+
+	if len(elements) >= 3 {
+
+		key, value := elements[1], elements[2]
+
+		data := Entry{
+			Value:     value,
+			TimeStamp: time.Time{},
+		}
+
+		storage.Set(key, data)
+
+		if len(elements) == 5 {
+
+			opt := strings.ToLower(elements[3])
+			if opt != "px" && opt != "ex" {
+				return defaultReply
+			}
+
+			val, err := strconv.Atoi(elements[4])
+			if err != nil {
+				return defaultReply
+			}
+
+			var lifespan time.Duration
+			if opt == "px" {
+				lifespan = time.Duration(val) * time.Millisecond
+			} else {
+				lifespan = time.Duration(val) * time.Second
+			}
+			data.TimeStamp = time.Now().Add(lifespan)
+			storage.Set(key, data)
+
+		}
+
+		return fmt.Sprintf("%sOK%s", string(stringMark), terminator)
+	}
+	return defaultReply
 
 }
