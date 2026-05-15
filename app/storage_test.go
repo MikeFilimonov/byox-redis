@@ -38,3 +38,68 @@ func TestStorageRace(t *testing.T) {
 	}
 
 }
+func TestWipeEntry_Positive(t *testing.T) {
+
+	storage := Storage{
+		data: map[string]Entry{},
+		mu:   sync.RWMutex{},
+	}
+	key := "random"
+
+	entry := Entry{Value: "arbitrary", TimeStamp: time.Now()}
+	added := storage.Set(key, entry)
+	if !added {
+		t.Errorf("failed to find the expected value by key %s", key)
+	}
+
+	wiped := storage.WipeEntry(key, entry)
+
+	if !wiped {
+		t.Errorf("failed to wipe the data %s", key)
+	}
+
+	if _, found := storage.Get(key); found {
+		t.Errorf("expected to wipe %s, yet found data", key)
+	}
+
+	added = storage.Set(key, entry)
+	if !added {
+		t.Errorf("failed to find the expected value by key %s", key)
+	}
+
+	missing := Entry{Value: "missing", TimeStamp: time.Now()}
+	wiped = storage.WipeEntry(key, missing)
+
+	if wiped {
+		t.Errorf("wipe the data %s by mistake", key)
+	}
+
+	if _, found := storage.Get(key); !found {
+		t.Errorf("expected to keep the data %s, yet wiped it", key)
+	}
+
+}
+
+func TestWipeEntry_Negative(t *testing.T) {
+
+	key := "random"
+
+	entry := Entry{Value: "arbitrary", TimeStamp: time.Now()}
+
+	added := storage.Set(key, entry)
+	if !added {
+		t.Errorf("failed to find the expected value by key %s", key)
+	}
+
+	missing := Entry{Value: "missing", TimeStamp: time.Now()}
+	wiped := storage.WipeEntry(key, missing)
+
+	if wiped {
+		t.Errorf("wipe the data %s by mistake", key)
+	}
+
+	if _, found := storage.Get(key); !found {
+		t.Errorf("expected to keep the data %s, yet wiped it", key)
+	}
+
+}
