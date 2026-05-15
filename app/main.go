@@ -178,7 +178,7 @@ func getValue(elements []string, defaultReply string) string {
 
 	if len(elements) > 1 {
 
-		ok, data := storage.Get(elements[1])
+		data, ok := storage.Get(elements[1])
 		if !ok {
 			return fmt.Sprintf("%v-1%s", string(bulkStringMark), terminator)
 		}

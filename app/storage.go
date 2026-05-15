@@ -15,17 +15,17 @@ type Entry struct {
 	TimeStamp time.Time
 }
 
-func (s *Storage) Get(key string) (bool, Entry) {
+func (s *Storage) Get(key string) (Entry, bool) {
 
 	if len(key) == 0 {
-		return false, Entry{}
+		return Entry{}, false
 	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	data, exists := s.data[key]
-	return exists, data
+	return data, exists
 
 }
 
