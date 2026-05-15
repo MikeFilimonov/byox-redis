@@ -188,7 +188,8 @@ func getValue(elements []string, defaultReply string) string {
 		}
 
 		if data.TimeStamp.Before(time.Now()) {
-			storage.Set(elements[1], Entry{})
+
+			storage.WipeEntry(elements[1], data)
 			return fmt.Sprintf("%v-1%s", string(bulkStringMark), terminator)
 		}
 
