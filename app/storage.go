@@ -6,7 +6,7 @@ import (
 )
 
 type Storage struct {
-	data map[string]Entry
+	data map[string]*Entry
 	mu   sync.RWMutex
 }
 
@@ -14,10 +14,10 @@ type Entry struct {
 	Value string
 }
 
-func (s *Storage) Get(key string) (Entry, bool) {
+func (s *Storage) Get(key string) (*Entry, bool) {
 
 	if len(key) == 0 {
-		return Entry{}, false
+		return &Entry{}, false
 	}
 
 	s.mu.RLock()
@@ -28,7 +28,7 @@ func (s *Storage) Get(key string) (Entry, bool) {
 
 }
 
-func (s *Storage) Set(key string, data Entry, lifespan time.Duration) bool {
+func (s *Storage) Set(key string, data *Entry, lifespan time.Duration) bool {
 
 	if len(key) == 0 {
 		return false

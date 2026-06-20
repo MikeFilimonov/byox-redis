@@ -21,7 +21,7 @@ const (
 var _ = net.Listen
 var _ = os.Exit
 
-var storage = &Storage{data: make(map[string]Entry)}
+var storage = &Storage{data: make(map[string]*Entry)}
 
 func main() {
 
@@ -209,7 +209,7 @@ func setValue(elements []string, defaultReply string) string {
 
 		key, value := elements[1], elements[2]
 
-		data := Entry{
+		data := &Entry{
 			Value: value,
 		}
 
