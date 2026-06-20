@@ -14,7 +14,7 @@ const (
 	arrayMark      = '*'
 	bulkStringMark = '$'
 	stringMark     = '+'
-	timeTolive     = time.Duration(86400) // seconds in an hour
+	timeTolive     = 3600 * time.Second // seconds in an hour
 )
 
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)

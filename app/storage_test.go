@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const secondsInADay = time.Duration(86400)
+const secondsInADay = 86400 * time.Second
 
 func TestStorageRace(t *testing.T) {
 
