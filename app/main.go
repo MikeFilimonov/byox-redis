@@ -14,6 +14,7 @@ const (
 	arrayMark      = '*'
 	bulkStringMark = '$'
 	stringMark     = '+'
+	timeTolive     = time.Duration(86400) // seconds in an hour
 )
 
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
@@ -23,6 +24,18 @@ var _ = os.Exit
 var storage = &Storage{data: make(map[string]Entry)}
 
 func main() {
+
+	// var buffer bufio.Reader
+	// directive, err := buffer.ReadString(byte('\n'))
+	// if err != nil {
+	// 	fmt.Println("Error on parsing input: ", err.Error())
+	// 	os.Exit(1)
+	// }
+
+	// TODO:
+	// get the item count
+	// run the loop until done for collecting input parts
+
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	fmt.Println("Logs from your program will appear here!")
 
@@ -183,16 +196,6 @@ func getValue(elements []string, defaultReply string) string {
 			return fmt.Sprintf("%v-1%s", string(bulkStringMark), terminator)
 		}
 
-		if data.TimeStamp.IsZero() {
-			return encodeBulkString(fmt.Sprintf("%v", data.Value))
-		}
-
-		if data.TimeStamp.Before(time.Now()) {
-
-			storage.WipeEntry(elements[1], data)
-			return fmt.Sprintf("%v-1%s", string(bulkStringMark), terminator)
-		}
-
 		return encodeBulkString(fmt.Sprintf("%v", data.Value))
 
 	}
@@ -207,11 +210,10 @@ func setValue(elements []string, defaultReply string) string {
 		key, value := elements[1], elements[2]
 
 		data := Entry{
-			Value:     value,
-			TimeStamp: time.Time{},
+			Value: value,
 		}
 
-		storage.Set(key, data)
+		storage.Set(key, data, timeTolive)
 
 		if len(elements) == 5 {
 
@@ -231,8 +233,7 @@ func setValue(elements []string, defaultReply string) string {
 			} else {
 				lifespan = time.Duration(val) * time.Second
 			}
-			data.TimeStamp = time.Now().Add(lifespan)
-			storage.Set(key, data)
+			storage.Set(key, data, lifespan)
 
 		}
 

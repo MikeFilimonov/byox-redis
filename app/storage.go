@@ -11,8 +11,7 @@ type Storage struct {
 }
 
 type Entry struct {
-	Value     string
-	TimeStamp time.Time
+	Value string
 }
 
 func (s *Storage) Get(key string) (Entry, bool) {
@@ -29,7 +28,7 @@ func (s *Storage) Get(key string) (Entry, bool) {
 
 }
 
-func (s *Storage) Set(key string, data Entry) bool {
+func (s *Storage) Set(key string, data Entry, lifespan time.Duration) bool {
 
 	if len(key) == 0 {
 		return false
@@ -39,28 +38,16 @@ func (s *Storage) Set(key string, data Entry) bool {
 	defer s.mu.Unlock()
 
 	s.data[key] = data
+
+	time.AfterFunc(lifespan, func() {
+
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.data[key] == data {
+			delete(s.data, key)
+		}
+	})
+
 	return true
-
-}
-
-func (s *Storage) WipeEntry(key string, previous Entry) bool {
-
-	if len(key) == 0 {
-		return false
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	currentEntry, found := s.data[key]
-	if !found {
-		return found
-	}
-
-	gottaUpdate := previous.Value == currentEntry.Value &&
-		previous.TimeStamp.Equal(currentEntry.TimeStamp)
-	if gottaUpdate {
-		delete(s.data, key)
-	}
-	return gottaUpdate
 
 }
