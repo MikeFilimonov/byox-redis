@@ -75,7 +75,7 @@ func TestWipeEntry_Negative(t *testing.T) {
 	entry := &Entry{Value: "arbitrary"}
 
 	storage.Set(key, entry, ttl)
-	time.Sleep(3 * time.Second)
+	time.Sleep(1 * time.Second)
 	if _, found := storage.Get(key); !found {
 		t.Errorf("expected to keep the data %s, yet wiped it", key)
 	}
