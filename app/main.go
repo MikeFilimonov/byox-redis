@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -10,11 +12,12 @@ import (
 )
 
 const (
-	terminator     = "\r\n"
-	arrayMark      = '*'
-	bulkStringMark = '$'
-	stringMark     = '+'
-	timeTolive     = 3600 * time.Second // seconds in an hour
+	terminator        = "\r\n"
+	arrayMark         = '*'
+	bulkStringMark    = '$'
+	stringMark        = '+'
+	timeTolive        = 3600 * time.Second // seconds in an hour
+	defaultParseError = "failed to read the input: "
 )
 
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
@@ -25,14 +28,6 @@ var storage = &Storage{data: make(map[string]*Entry)}
 
 func main() {
 
-	// var buffer bufio.Reader
-	// directive, err := buffer.ReadString(byte('\n'))
-	// if err != nil {
-	// 	fmt.Println("Error on parsing input: ", err.Error())
-	// 	os.Exit(1)
-	// }
-
-	// TODO:
 	// get the item count
 	// run the loop until done for collecting input parts
 
@@ -65,124 +60,129 @@ func encodeBulkString(input string) string {
 	return fmt.Sprintf("$%d%s%s%s", len(input), terminator, input, terminator)
 }
 
-func parseBulkString(input string) (string, string) {
+func parseBulkString(reader *bufio.Reader) (string, error) {
+
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Println(defaultParseError, err.Error())
+		return "", err
+	}
+
+	input = strings.TrimSuffix(input, terminator)
 
 	if len(input) == 0 || input[0] != bulkStringMark {
-		return "", input
+		return "", fmt.Errorf("expected bulk string mark, got %q", input)
 	}
 
-	// first line end
-	endIdx := strings.Index(input, terminator)
-	if endIdx == -1 {
-		return "", input
-	}
-
-	rawLength := input[1:endIdx]
-	length := 0
-	_, err := fmt.Sscanf(rawLength, "%d", &length)
+	length, err := strconv.Atoi(input[1:])
 	if err != nil {
-		return "", input
+		fmt.Println("failed to parse bulk string length: ", err.Error())
+		return "", err
 	}
 
-	dataStartPosition := endIdx + 2
-	dataEndPosition := dataStartPosition + length
-	if dataEndPosition > len(input) {
-		return "", input
+	buffer := make([]byte, length+len(terminator))
+
+	_, err = io.ReadFull(reader, buffer)
+	if err != nil {
+		fmt.Println("failed to read array elements")
+		return "", err
 	}
 
-	remainder := input[dataEndPosition+len(terminator):]
-
-	return input[dataStartPosition:dataEndPosition], remainder
+	return string(buffer[:length]), nil
 
 }
 
-func parseArray(input string) ([]string, string) {
+func parseArray(reader *bufio.Reader) ([]string, error) {
 
-	if len(input) == 0 || input[0] != arrayMark {
-		return nil, input
-	}
-
-	// first line end
-	firstLineEnd := strings.Index(input, terminator)
-	if firstLineEnd == -1 {
-		return nil, input
-	}
-
-	elementsCountRaw := input[1:firstLineEnd]
-
-	elementsCount := 0
-	_, err := fmt.Sscanf(elementsCountRaw, "%d", &elementsCount)
+	input, err := reader.ReadString('\n')
 	if err != nil {
-		return nil, input
+		fmt.Println(defaultParseError, err.Error())
+		return []string{}, err
 	}
 
-	remainder := input[firstLineEnd+2:]
-	elements := make([]string, 0, elementsCount)
+	input = strings.TrimSuffix(input, terminator)
+	length, err := strconv.Atoi(input[1:])
+	if err != nil {
+		fmt.Println("failed to parse array length: ", err.Error())
+		return []string{}, err
+	}
 
-	for i := 0; i < elementsCount; i++ {
-		if len(remainder) == 0 || remainder[0] != bulkStringMark {
-			break
+	elements := make([]string, 0, length)
+
+	for i := 0; i < length; i++ {
+
+		element, err := parseBulkString(reader)
+		if err != nil {
+			fmt.Println(defaultParseError, err.Error())
+			return []string{}, err
 		}
-
-		bulkString, newRemainder := parseBulkString(remainder)
-		elements = append(elements, bulkString)
-		remainder = newRemainder
+		elements = append(elements, element)
 
 	}
 
-	return elements, remainder
+	return elements, nil
 
 }
 
 func replyToClient(clientConnection net.Conn) {
 
+	defer clientConnection.Close()
+	reader := bufio.NewReader(clientConnection)
+
 	for {
 
-		buffer := make([]byte, 1024)
-		n, err := clientConnection.Read(buffer)
+		reply, err := handleInput(reader)
 		if err != nil {
 			fmt.Println("Failed to read data from client request: ", err.Error())
 			return
 		}
-
-		input := string(buffer[:n])
-		reply := handleInput(input)
-		clientConnection.Write([]byte(reply))
+		if _, err := clientConnection.Write([]byte(reply)); err != nil {
+			fmt.Println("Failed to send the reply: ", err.Error())
+			return
+		}
 	}
 
 }
 
-func handleInput(input string) string {
+func handleInput(reader *bufio.Reader) (string, error) {
+
+	firstItem, err := reader.ReadByte()
+	if err != nil {
+		fmt.Println(defaultParseError, err.Error())
+		return "", err
+	}
 
 	defaultReply := fmt.Sprintf("0%s%s", terminator, terminator)
-	if len(input) == 0 {
-		return defaultReply
+
+	if rune(firstItem) != arrayMark {
+		return defaultReply, nil
 	}
 
-	if input[0] != arrayMark {
-		return defaultReply
-	}
+	reader.UnreadByte() // parseArray gotta catch'em all
 
-	elements, _ := parseArray(input)
+	elements, err := parseArray(reader)
+	if err != nil {
+		return "", err
+	}
 	if len(elements) == 0 {
-		return defaultReply
+		return defaultReply, nil
 	}
 
 	command := strings.ToLower(elements[0])
 	switch command {
 	case "ping":
-		return fmt.Sprintf("%vPONG%s", string(stringMark), terminator)
+		return fmt.Sprintf("%vPONG%s", string(stringMark), terminator), nil
 	case "echo":
 		if len(elements) > 1 {
-			return encodeBulkString(elements[1])
+			return encodeBulkString(elements[1]), nil
 		}
-		return defaultReply
+		return defaultReply, nil
 	case "get":
-		return getValue(elements, defaultReply)
+		return getValue(elements, defaultReply), nil
 	case "set":
-		return setValue(elements, defaultReply)
+		return setValue(elements, defaultReply), nil
 	default:
-		return defaultReply
+		return defaultReply, nil
 	}
 
 }
