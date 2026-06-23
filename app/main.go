@@ -159,7 +159,10 @@ func handleInput(reader *bufio.Reader) (string, error) {
 		return defaultReply, nil
 	}
 
-	reader.UnreadByte() // parseArray gotta catch'em all
+	err = reader.UnreadByte() // parseArray gotta catch'em all
+	if err != nil {
+		return "", err
+	}
 
 	elements, err := parseArray(reader)
 	if err != nil {

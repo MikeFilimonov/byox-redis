@@ -54,7 +54,7 @@ func TestWipeEntry_Positive(t *testing.T) {
 	if !added {
 		t.Errorf("failed to find the expected value by key %s", key)
 	}
-	added = storage.Set(key, entry, ttl)
+	_ = storage.Set(key, entry, ttl)
 
 	time.Sleep(11 * time.Second)
 

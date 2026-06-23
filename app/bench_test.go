@@ -58,13 +58,19 @@ func TestBenchmark(t *testing.T) {
 			fmt.Fprintf(&sb, "%c%d%s%s%s",
 				bulkStringMark, len(a), terminator, a, terminator)
 		}
-		connection.Write([]byte(sb.String()))
+		_, err := connection.Write([]byte(sb.String()))
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	readReply := func() {
 		line, _ := reader.ReadString(newLiner)
 		if len(line) > 0 && line[0] == bulkStringMark {
-			reader.ReadString(newLiner)
+			_, err := reader.ReadString(newLiner)
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 
