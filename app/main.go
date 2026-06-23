@@ -13,6 +13,7 @@ import (
 
 const (
 	terminator        = "\r\n"
+	newLiner          = '\n'
 	arrayMark         = '*'
 	bulkStringMark    = '$'
 	stringMark        = '+'
@@ -62,7 +63,7 @@ func encodeBulkString(input string) string {
 
 func parseBulkString(reader *bufio.Reader) (string, error) {
 
-	input, err := reader.ReadString('\n')
+	input, err := reader.ReadString(newLiner)
 	if err != nil {
 		fmt.Println(defaultParseError, err.Error())
 		return "", err
@@ -94,7 +95,7 @@ func parseBulkString(reader *bufio.Reader) (string, error) {
 
 func parseArray(reader *bufio.Reader) ([]string, error) {
 
-	input, err := reader.ReadString('\n')
+	input, err := reader.ReadString(newLiner)
 	if err != nil {
 		fmt.Println(defaultParseError, err.Error())
 		return []string{}, err
